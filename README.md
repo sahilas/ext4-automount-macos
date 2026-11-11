@@ -1,3 +1,5 @@
+<img src="packaging/icon-preview.png" width="128" alt="Ext4 Automount icon">
+
 # Ext4 Automount for macOS
 
 Plug in an ext4 (Linux) drive and it mounts **read-write** in Finder automatically.
@@ -16,7 +18,8 @@ in. Ext4 Automount does that for you.
    right-click the file and choose **Open**, or allow it under
    **System Settings > Privacy & Security > Open Anyway**.
 3. Follow the installer and enter your password.
-4. When Full Disk Access settings open, turn on the switch next to **Ext4 Automount**.
+4. A setup window opens with a short checklist. Click **Open Full Disk Access Settings…**
+   and turn on the switch next to **Ext4 Automount**. Each line turns green when it's done.
 
 Then plug in your drive. It appears under `/Volumes/<label>` within about 10 seconds.
 The very first mount takes about a minute, because anylinuxfs downloads a small Linux image.
@@ -44,18 +47,30 @@ turn the switch on again.
 
 The menu bar icon shows connected Linux drives:
 
-- **Eject \<drive\>** unmounts the drive and ejects the disk. Finder's eject does the same.
+- **Open \<drive\>** and **Eject \<drive\>** for a mounted drive. Ejecting also ejects the
+  disk, and Finder's eject does the same.
+- **Mount \<drive\>** for a drive that is connected but ejected.
 - **Pause Auto-Mount** stops new drives from mounting until you turn it off.
-- **Turn On Full Disk Access…** appears, with a warning icon, when access is missing.
+- **Options**
+  - **Mount Read-Only**
+  - **Make All Files Writable for Me**, for files created by another user on Linux
+  - **Never Mount**, per connected drive
+- **Check for Updates…** The app also checks once a day and shows **Update Available**.
+  The check asks GitHub for the latest release and sends nothing about your Mac.
+- **Finish Setup…** appears, with a warning icon, while Full Disk Access is off.
 - **Open Log** shows what the service did.
 
-After you eject a drive, it stays unmounted until you unplug it and plug it back in. If it
-is still connected, the menu shows **Mount \<drive\>** to mount it again without replugging.
+You get a notification when a drive is ready; click it to open the drive. Allow
+notifications for Ext4 Automount when macOS asks.
 
-## Options
+After you eject a drive, it stays unmounted until you unplug it and plug it back in, or
+choose **Mount \<drive\>**.
 
-Copy `/Library/Application Support/Ext4 Automount/config.example` to `config` in the same
-folder (needs `sudo`) and edit it. Changes apply to the next drive you plug in.
+## Options file
+
+The menu covers the common options. The rest live in
+`/Library/Application Support/Ext4 Automount/config` (copy `config.example` in that folder;
+needs `sudo`). Changes apply the next time a drive mounts.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -65,6 +80,8 @@ folder (needs `sudo`) and edit it. Changes apply to the next drive you plug in.
 | `IGNORE` | empty | Labels or filesystem UUIDs of drives never to mount. |
 
 ## Uninstall
+
+Choose **Uninstall…** from the menu bar icon and enter your password. Or in Terminal:
 
 ```bash
 sudo "/Applications/Ext4 Automount.app/Contents/Resources/uninstall.sh"
@@ -82,7 +99,8 @@ stays installed.
   `blkid` for the filesystem type. If the type is on the list, it runs `anylinuxfs mount`
   on behalf of the logged-in user. When the volume is unmounted, it ejects the disk.
 - **Menu bar app** (run as you at login). It reads the service's status file and shows
-  notifications.
+  notifications. To mount a drive or change an option, it drops a small request file that
+  the service validates; it never runs anything as root itself.
 
 Files it installs:
 

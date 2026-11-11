@@ -3,6 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key><string>local.ext4-automount</string>
+  <key>AssociatedBundleIdentifiers</key><string>local.ext4-automount</string>
   <key>ProgramArguments</key>
   <array>
     <string>/Applications/Ext4 Automount.app/Contents/MacOS/ext4-automount</string>
