@@ -7,7 +7,7 @@ launchctl bootout "gui/$uid/local.ext4-automount.menu" 2>/dev/null || true
 launchctl bootout system/local.ext4-automount 2>/dev/null || true
 rm -f /Library/LaunchDaemons/local.ext4-automount.plist \
       /Library/LaunchAgents/local.ext4-automount.menu.plist \
-      /etc/newsyslog.d/ext4-automount.conf /Users/Shared/.ext4-automount-paused
+      /etc/newsyslog.d/ext4-automount.conf /Users/Shared/.ext4-automount-paused /Users/Shared/.ext4-automount-mount
 rm -rf "/Applications/Ext4 Automount.app" "/Library/Application Support/Ext4 Automount" \
        /var/run/ext4-automount
 tccutil reset All local.ext4-automount >/dev/null 2>&1 || true

@@ -90,7 +90,8 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "mounted": _ = add("Eject \(d.label)", #selector(eject(_:)), d.mountPoint)
             case "mounting": _ = add("\(d.label): mounting…")
             case "waiting": _ = add("\(d.label): waiting for the other drive")
-            default: _ = add("\(d.label): couldn't mount")
+            case "ejected": _ = add("Mount \(d.label)", #selector(mount(_:)), d.device)
+            default: _ = add("Retry Mounting \(d.label)", #selector(mount(_:)), d.device)
             }
         }
         menu.addItem(.separator())
@@ -110,6 +111,12 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             FileManager.default.createFile(atPath: Paths.pauseFlag, contents: nil)
         }
+    }
+
+    /// Ask the service to mount an ejected (or failed) drive. Takes a few seconds.
+    @objc private func mount(_ sender: NSMenuItem) {
+        guard let device = sender.representedObject as? String else { return }
+        try? device.write(toFile: Paths.mountRequest, atomically: true, encoding: .utf8)
     }
 
     /// Unmount the volume; the service then ejects the physical disk.

@@ -39,6 +39,9 @@ final class Daemon {
     private var waiting: [String] = []            // partitions not mounted yet, in arrival order
     private var active: String?                   // partition being mounted or mounted
     private var ejectedAt: [String: Date] = [:]   // filesystem UUID -> when we ejected it
+    /// Attached but not mounted (ejected, or mount failed): partition -> UUID.
+    /// The menu bar app can ask to mount these.
+    private var parked: [String: String] = [:]
     private var retryTimer: DispatchSourceTimer?
     private var askedForAccess = false
     private var noticeID = Int(Date().timeIntervalSince1970)
@@ -84,7 +87,9 @@ final class Daemon {
     private func disappeared(_ disk: DADisk) {
         guard let name = DADiskGetBSDName(disk).map({ String(cString: $0) }) else { return }
         waiting.removeAll { $0 == name }
+        parked[name] = nil
         status.drives.removeAll { $0.device == name && $0.state != "mounted" && $0.state != "mounting" }
+        updateRetryTimer()
         publish()
     }
 
@@ -92,6 +97,7 @@ final class Daemon {
     /// mount ends, and from the retry timer while something is blocked.
     private func processWaiting() {
         defer { updateRetryTimer(); publish() }
+        status.fullDiskAccess = hasFullDiskAccess()
         guard !waiting.isEmpty else { return }
 
         let fda = hasFullDiskAccess()
@@ -124,7 +130,12 @@ final class Daemon {
             } else if config.ignore.contains(label) || config.ignore.contains(uuid) {
                 log("skip /dev/\(name) (\(label)): on the ignore list")
             } else if let t = ejectedAt[uuid], Date().timeIntervalSince(t) < 20 {
-                log("skip /dev/\(name) (\(label)): reappeared right after eject")
+                // Some enclosures reconnect by themselves after an eject. Don't
+                // remount; leave it for the menu's Mount item.
+                log("not mounting /dev/\(name) (\(label)): reappeared right after eject")
+                parked[name] = uuid
+                status.drives.removeAll { $0.device == name }
+                status.drives.append(Drive(device: name, label: label, state: "ejected", mountPoint: ""))
             } else if active != nil {
                 drop = false   // one anylinuxfs mount at a time; keep waiting
                 if !status.drives.contains(where: { $0.device == name }) {
@@ -142,16 +153,35 @@ final class Daemon {
         }
     }
 
+    /// The menu bar app asks to mount a parked partition by writing its name
+    /// to Paths.mountRequest. Only names we parked ourselves are accepted.
+    private func checkMountRequest() {
+        let fd = open(Paths.mountRequest, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+        guard fd >= 0 else { return }
+        var buf = [UInt8](repeating: 0, count: 64)
+        let n = read(fd, &buf, buf.count)
+        close(fd)
+        unlink(Paths.mountRequest)
+        guard n > 0 else { return }
+        let name = String(decoding: buf[..<n], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uuid = parked[name] else { return }
+        log("mount of /dev/\(name) requested from the menu")
+        parked[name] = nil
+        ejectedAt[uuid] = nil
+        status.drives.removeAll { $0.device == name }
+        waiting.append(name)
+    }
+
     /// Re-check every 5 s only while a partition is blocked (no Full Disk
-    /// Access, paused, nobody logged in, another drive mounted).
+    /// Access, paused, nobody logged in, another drive mounted) or parked.
     private func updateRetryTimer() {
-        if waiting.isEmpty {
+        if waiting.isEmpty && parked.isEmpty {
             retryTimer?.cancel()
             retryTimer = nil
         } else if retryTimer == nil {
             let t = DispatchSource.makeTimerSource(queue: queue)
             t.schedule(deadline: .now() + 5, repeating: 5)
-            t.setEventHandler { [weak self] in self?.processWaiting() }
+            t.setEventHandler { [weak self] in self?.checkMountRequest(); self?.processWaiting() }
             t.resume()
             retryTimer = t
         }
@@ -164,7 +194,10 @@ final class Daemon {
         func finish(_ state: String?) {
             queue.sync {
                 status.drives.removeAll { $0.device == name }
-                if let state { status.drives.append(Drive(device: name, label: label, state: state, mountPoint: "")) }
+                if let state {
+                    status.drives.append(Drive(device: name, label: label, state: state, mountPoint: ""))
+                    parked[name] = uuid   // failed: the menu offers a retry
+                }
                 active = nil
                 processWaiting()
             }

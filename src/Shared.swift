@@ -6,6 +6,8 @@ enum Paths {
     static let status = runDir + "/status.json"
     /// Exists = auto-mount paused. Anyone may pause; it only stops mounting.
     static let pauseFlag = "/Users/Shared/.ext4-automount-paused"
+    /// The menu bar app writes a partition name here to ask for a mount.
+    static let mountRequest = "/Users/Shared/.ext4-automount-mount"
     /// Root-owned options file (see config.example).
     static let config = "/Library/Application Support/Ext4 Automount/config"
     /// A file only readable with Full Disk Access.
@@ -18,7 +20,7 @@ enum Paths {
 struct Drive: Codable {
     var device: String      // disk4s1
     var label: String
-    var state: String       // waiting | mounting | mounted | failed
+    var state: String       // waiting | mounting | mounted | ejected | failed
     var mountPoint: String
 }
 

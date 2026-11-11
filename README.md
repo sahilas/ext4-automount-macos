@@ -49,7 +49,8 @@ The menu bar icon shows connected Linux drives:
 - **Turn On Full Disk Access…** appears, with a warning icon, when access is missing.
 - **Open Log** shows what the service did.
 
-After you eject a drive, it stays unmounted until you unplug it and plug it back in.
+After you eject a drive, it stays unmounted until you unplug it and plug it back in. If it
+is still connected, the menu shows **Mount \<drive\>** to mount it again without replugging.
 
 ## Options
 
@@ -102,6 +103,7 @@ The log is at `/var/log/ext4-automount.log`.
 | "Couldn't mount" notification | Run `anylinuxfs log` to see why anylinuxfs failed. |
 | "\<drive\> is waiting" | Only one Linux drive mounts at a time. Eject the current one. |
 | The disk reappears right after ejecting | Some USB enclosures reconnect after an eject. The drive isn't mounted, so it's safe to unplug. |
+| Replugged drive doesn't mount | It was replugged within 20 seconds of an eject. Choose **Mount \<drive\>** from the menu bar icon. |
 
 ## Limitations
 
@@ -111,7 +113,8 @@ The log is at `/var/log/ext4-automount.log`.
 - Encrypted (LUKS) and LVM volumes are not mounted automatically. Use `anylinuxfs` directly.
 - Tested on Apple Silicon with macOS 27. The app is built for Intel and macOS 11 or later
   too, but that is untested.
-- A drive replugged within 20 seconds of an eject is ignored. Wait a moment, then replug.
+- A drive that reconnects within 20 seconds of an eject is not mounted automatically,
+  because some enclosures reconnect by themselves. Choose **Mount \<drive\>** from the menu.
 
 ## Build from source
 
