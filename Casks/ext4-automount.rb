@@ -1,6 +1,6 @@
 cask "ext4-automount" do
-  version "1.2.0"
-  sha256 "1edd07dfc1d1cd635fac996483f9d5bd62931ec2e986288f5b5c1b795cc33397"
+  version "1.2.1"
+  sha256 "e5671e3a62e4a6971a0f5cb8c40a62b9ccc65f3a04ce0374b6bac818d9c1aab0"
 
   url "https://github.com/sahilas/ext4-automount-macos/releases/download/v#{version}/Ext4-Automount-#{version}.pkg"
   name "Ext4 Automount"
