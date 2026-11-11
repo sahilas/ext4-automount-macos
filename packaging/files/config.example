@@ -1,0 +1,14 @@
+# Ext4 Automount options. Copy to "config" in this folder (needs sudo) and edit.
+# Changes apply to the next drive you plug in.
+
+# Filesystems to mount automatically. anylinuxfs also supports e.g. btrfs xfs.
+FILESYSTEMS=ext2 ext3 ext4
+
+# Mount drives read-only.
+READ_ONLY=no
+
+# Treat all files as owned by you, so files created on Linux are writable.
+IGNORE_PERMISSIONS=no
+
+# Drives never to mount, by label or filesystem UUID (space separated).
+IGNORE=

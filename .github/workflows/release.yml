@@ -1,0 +1,87 @@
+name: Release
+
+# Push a tag like v1.2.0 to build the installer, publish a GitHub release,
+# and update the Homebrew cask in Casks/.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Optional: set these repository secrets to ship a signed, notarized
+      # installer. Without them the package is ad-hoc signed.
+      APP_SIGN_ID: ${{ secrets.APP_SIGN_ID }}
+      INSTALLER_SIGN_ID: ${{ secrets.INSTALLER_SIGN_ID }}
+      SIGNING_CERTS_P12: ${{ secrets.SIGNING_CERTS_P12 }}
+      SIGNING_CERTS_PASSWORD: ${{ secrets.SIGNING_CERTS_PASSWORD }}
+      NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+      NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+      NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Check out the tagged source
+        run: git checkout --detach "$GITHUB_REF_NAME"
+
+      - name: Import signing certificates
+        if: env.SIGNING_CERTS_P12 != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p ci "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p ci "$keychain"
+          echo "$SIGNING_CERTS_P12" | base64 --decode > "$RUNNER_TEMP/certs.p12"
+          security import "$RUNNER_TEMP/certs.p12" -P "$SIGNING_CERTS_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k ci "$keychain"
+          security list-keychains -d user -s "$keychain"
+          xcrun notarytool store-credentials ci-notary --apple-id "$NOTARY_APPLE_ID" \
+            --team-id "$NOTARY_TEAM_ID" --password "$NOTARY_PASSWORD"
+          echo "NOTARY_PROFILE=ci-notary" >> "$GITHUB_ENV"
+
+      - name: Build installer
+        run: packaging/build-pkg.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Publish release
+        run: gh release create "$GITHUB_REF_NAME" dist/*.pkg --generate-notes
+
+      - name: Update Homebrew cask
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sha=$(shasum -a 256 "dist/Ext4-Automount-$version.pkg" | cut -d' ' -f1)
+          git checkout "${{ github.event.repository.default_branch }}"
+          mkdir -p Casks
+          cat > Casks/ext4-automount.rb <<EOF
+          cask "ext4-automount" do
+            version "$version"
+            sha256 "$sha"
+
+            url "https://github.com/$GITHUB_REPOSITORY/releases/download/v#{version}/Ext4-Automount-#{version}.pkg"
+            name "Ext4 Automount"
+            desc "Mount ext4 drives read-write automatically when plugged in"
+            homepage "https://github.com/$GITHUB_REPOSITORY"
+
+            depends_on formula: "nohajc/anylinuxfs/anylinuxfs"
+
+            pkg "Ext4-Automount-#{version}.pkg"
+
+            uninstall script: {
+              executable: "/Applications/Ext4 Automount.app/Contents/Resources/uninstall.sh",
+              sudo:       true,
+            }
+          end
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/ext4-automount.rb
+          git commit -m "Update cask to $version"
+          git push

@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stop running copies before files are replaced (upgrade).
+launchctl bootout system/local.ext4-automount 2>/dev/null || true
+uid=$(stat -f%u /dev/console)
+launchctl bootout "gui/$uid/local.ext4-automount.menu" 2>/dev/null || true
+exit 0

@@ -1,0 +1,49 @@
+#!/bin/bash
+# Runs as root after the package files are installed.
+LOG=/var/log/ext4-automount.log
+user=$(stat -f%Su /dev/console)
+uid=$(id -u "$user" 2>/dev/null || echo 0)
+as_user() { launchctl asuser "$uid" sudo -u "$user" -H "$@"; }
+dialog() {  # $1 = message
+  as_user osascript -e "display dialog \"$1\" with title \"Ext4 Automount\" buttons {\"OK\"} default button 1 with icon note" >/dev/null 2>&1 || true
+}
+
+touch "$LOG"; chmod 644 "$LOG"
+# Files from early builds that lived in /usr/local/libexec
+rm -f /usr/local/libexec/ext4-automount.sh /usr/local/libexec/ext4-automount-launcher \
+      /usr/local/libexec/ext4-automount-uninstall.sh
+
+# 1. anylinuxfs (installed with Homebrew as the logged-in user; brew refuses root)
+if ! [ -x /opt/homebrew/bin/anylinuxfs ] && ! [ -x /usr/local/bin/anylinuxfs ]; then
+  brew=""
+  for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && brew=$b; done
+  if [ -z "$brew" ]; then
+    dialog "Ext4 Automount needs Homebrew to install anylinuxfs.\n\nInstall Homebrew from https://brew.sh, then run this installer again."
+    exit 1
+  fi
+  if ! as_user "$brew" install nohajc/anylinuxfs/anylinuxfs >>"$LOG" 2>&1; then
+    dialog "Installing anylinuxfs failed. See $LOG, or run in Terminal:\n\nbrew install nohajc/anylinuxfs/anylinuxfs\n\nthen run this installer again."
+    exit 1
+  fi
+fi
+
+# 2. Start the service and the menu bar icon
+launchctl bootstrap system /Library/LaunchDaemons/local.ext4-automount.plist
+[ "$uid" != 0 ] && launchctl bootstrap "gui/$uid" /Library/LaunchAgents/local.ext4-automount.menu.plist
+
+# 3. Warn about other ext4 drivers that mount drives read-only first
+conflicts=$(as_user pluginkit -mA -p com.apple.fskit.fsmodule 2>/dev/null |
+  awk '!/^-/ && tolower($0) ~ /ext[234]|extendfs|linux/ {
+         for (i = 1; i <= NF; i++) if ($i ~ /\(/) { sub(/\(.*/, "", $i); print $i } }')
+if [ -n "$conflicts" ]; then
+  dialog "Another ext4 driver is enabled and will mount drives read-only before Ext4 Automount can:\n\n$conflicts\n\nRemove its app, or disable it in Terminal:\npluginkit -e ignore -i <id>"
+fi
+
+# 4. Full Disk Access: macOS only lets the user turn this on. The service has
+#    already listed the app there. Skip if it is already on (upgrade).
+sleep 2
+if ! grep -q '"fullDiskAccess":true' /var/run/ext4-automount/status.json 2>/dev/null; then
+  as_user open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+  dialog "One last step: in the settings window that just opened, turn on the switch next to Ext4 Automount.\n\n(If it isn't listed, click + and choose Ext4 Automount from Applications.)\n\nThen plug in your Linux drive. Look for the drive icon in the menu bar."
+fi
+exit 0
